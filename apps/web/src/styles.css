@@ -284,15 +284,121 @@ textarea {
   text-transform: uppercase;
 }
 
-.message-bubble p,
+.message-plain,
 .composer-tip,
 .status-error {
   margin: 0;
 }
 
-.message-bubble p {
+.message-plain {
   white-space: pre-wrap;
   color: var(--text-soft);
+}
+
+.message-content {
+  color: var(--text-soft);
+  word-break: break-word;
+}
+
+.message-content > :first-child {
+  margin-top: 0;
+}
+
+.message-content > :last-child {
+  margin-bottom: 0;
+}
+
+.message-content p,
+.message-content ul,
+.message-content ol,
+.message-content blockquote,
+.message-content .arithmetic-block-wrapper,
+.message-content pre {
+  margin: 0 0 0.85rem;
+}
+
+.message-content ul,
+.message-content ol {
+  padding-left: 1.3rem;
+}
+
+.message-content li + li {
+  margin-top: 0.32rem;
+}
+
+.message-content strong {
+  color: var(--text);
+  font-weight: 800;
+}
+
+.message-content code {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.95em;
+  padding: 0.12rem 0.3rem;
+  border-radius: 0.4rem;
+  background: rgba(18, 48, 65, 0.08);
+}
+
+.message-content pre {
+  overflow-x: auto;
+  padding: 0.9rem 1rem;
+  border-radius: 1rem;
+  background: rgba(18, 48, 65, 0.06);
+}
+
+.message-content pre code {
+  padding: 0;
+  background: transparent;
+}
+
+.message-content .katex {
+  font-size: 1.08em;
+}
+
+.message-content .katex-display {
+  margin: 1rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.2rem 0;
+}
+
+.arithmetic-block-wrapper {
+  overflow-x: auto;
+}
+
+.arithmetic-block {
+  border-collapse: collapse;
+  color: var(--text);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: clamp(1.7rem, 3vw, 2.4rem);
+  font-weight: 700;
+  line-height: 1.02;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.arithmetic-block td {
+  padding: 0;
+  vertical-align: bottom;
+}
+
+.arithmetic-operator-cell {
+  width: 1ch;
+  padding-right: 0.18ch;
+  text-align: left;
+}
+
+.arithmetic-digits-cell {
+  text-align: right;
+  letter-spacing: 0.01em;
+}
+
+.arithmetic-row-operation td {
+  border-bottom: 3px solid currentColor;
+  padding-bottom: 0.14rem;
+}
+
+.arithmetic-row-result td {
+  padding-top: 0.08rem;
 }
 
 .message-assistant {

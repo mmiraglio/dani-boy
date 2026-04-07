@@ -1,5 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { checkSession, requestAccess, sendChatMessage } from "./api.js";
+
+const MessageContent = lazy(() =>
+  import("./message-content.jsx").then((module) => ({
+    default: module.MessageContent
+  }))
+);
 
 const INITIAL_MESSAGE = {
   role: "assistant",
@@ -253,7 +259,13 @@ function ChatView({
             <span className="message-role">
               {message.role === "assistant" ? "Dani Boy" : "Voce"}
             </span>
-            <p>{message.content}</p>
+            {message.role === "assistant" ? (
+              <Suspense fallback={<p className="message-plain">{message.content}</p>}>
+                <MessageContent content={message.content} />
+              </Suspense>
+            ) : (
+              <p className="message-plain">{message.content}</p>
+            )}
           </article>
         ))}
 
