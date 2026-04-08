@@ -1,27 +1,21 @@
 services:
-  app:
+  dani-boy-app:
     build:
       context: .
-      dockerfile: Dockerfile
-    image: dani-boy:latest
     restart: unless-stopped
+    env_file:
+      - /srv/dani-boy/env/app.env
     environment:
-      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-https://ollama.com/v1}
-      OLLAMA_MAX_TOKENS: ${OLLAMA_MAX_TOKENS:-1000}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-glm-4.7}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
-      DEBUG: ${DEBUG:-false}
-      APP_ACCESS_CODE: ${APP_ACCESS_CODE:-1510T}
-      SESSION_SECRET: ${SESSION_SECRET}
-      PORT: ${PORT:-3000}
-      APP_ORIGIN: ${APP_ORIGIN:-}
-    ports:
-      - "${PORT:-3000}:${PORT:-3000}"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:${PORT:-3000}/api/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
+      PORT: "8001"
+    expose:
+      - "8001"
+    networks:
+      prodoc_net:
+        aliases:
+          - dani-boy
+          - dani-boy-app
+
+networks:
+  prodoc_net:
+    external: true
+    name: unesco-ed37_prodoc_net

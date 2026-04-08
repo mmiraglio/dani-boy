@@ -1,9 +1,10 @@
-FROM node:22-alpine AS base
+FROM node:25-alpine AS base
 
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
+ENV PNPM_VERSION="10.32.1"
 
-RUN corepack enable
+RUN npm install -g "pnpm@${PNPM_VERSION}"
 
 FROM base AS deps
 WORKDIR /app
@@ -25,6 +26,7 @@ FROM base AS production
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV PORT=8001
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/api/package.json apps/api/package.json
@@ -35,6 +37,6 @@ RUN pnpm install --prod --frozen-lockfile
 COPY apps/api apps/api
 COPY --from=build /app/apps/web/dist apps/web/dist
 
-EXPOSE 3000
+EXPOSE 8001
 
 CMD ["pnpm", "start"]
