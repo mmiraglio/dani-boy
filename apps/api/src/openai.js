@@ -68,6 +68,23 @@ function formatHistoryLine(message) {
   return `${speaker}: ${message.content}`;
 }
 
+function buildChatMessages({ history, message }) {
+  return [
+    {
+      role: "system",
+      content: SYSTEM_INSTRUCTIONS
+    },
+    ...history.map(({ content, role }) => ({
+      role,
+      content
+    })),
+    {
+      role: "user",
+      content: message
+    }
+  ];
+}
+
 /**
  * Prepara um texto simples para a Responses API sem exigir estado salvo no servidor.
  *
@@ -88,41 +105,188 @@ ${message}
   `.trim();
 }
 
-export function createChatResponder(config) {
-  if (!config.openaiApiKey) {
-    return async function unavailableResponder() {
-      const error = new Error(
-        "O servidor ainda nao recebeu a OPENAI_API_KEY para responder perguntas."
-      );
-      error.statusCode = 503;
-      throw error;
-    };
+function buildProviderConfigs(config) {
+  const providers = [];
+
+  if (config.ollamaApiKey) {
+    providers.push({
+      apiKey: config.ollamaApiKey,
+      baseURL: config.ollamaBaseUrl,
+      maxTokens: config.ollamaMaxTokens,
+      model: config.ollamaModel,
+      name: "ollama"
+    });
   }
 
-  const client = new OpenAI({
-    apiKey: config.openaiApiKey
+  if (config.openaiApiKey) {
+    providers.push({
+      apiKey: config.openaiApiKey,
+      model: config.openaiModel,
+      name: "openai"
+    });
+  }
+
+  return providers;
+}
+
+export function listConfiguredProviders(config) {
+  return buildProviderConfigs(config).map(
+    ({ baseURL = null, maxTokens = null, model, name }) => ({
+      baseURL,
+      maxTokens,
+      model,
+      name
+    })
+  );
+}
+
+function createOpenAICompatibleClient({ apiKey, baseURL }) {
+  return new OpenAI({
+    apiKey,
+    ...(baseURL ? { baseURL } : {})
   });
+}
+
+function buildUnavailableError() {
+  const error = new Error(
+    "O servidor ainda nao recebeu OLLAMA_API_KEY nem OPENAI_API_KEY para responder perguntas."
+  );
+  error.statusCode = 503;
+  return error;
+}
+
+function resolveStatusCode(error) {
+  if (typeof error?.statusCode === "number") {
+    return error.statusCode;
+  }
+
+  if (typeof error?.status === "number") {
+    return error.status;
+  }
+
+  return 502;
+}
+
+async function requestResponsesReply({ client, history, message, model }) {
+  const response = await client.responses.create({
+    model,
+    instructions: SYSTEM_INSTRUCTIONS,
+    input: buildConversationInput({ history, message }),
+    max_output_tokens: 350
+  });
+
+  const reply = response.output_text?.trim();
+
+  if (!reply) {
+    const error = new Error("A resposta do modelo veio vazia.");
+    error.statusCode = 502;
+    throw error;
+  }
+
+  return reply;
+}
+
+async function requestChatCompletionsReply({
+  client,
+  history,
+  maxTokens,
+  message,
+  model
+}) {
+  const response = await client.chat.completions.create({
+    model,
+    messages: buildChatMessages({ history, message }),
+    max_tokens: maxTokens
+  });
+
+  const reply = response.choices?.[0]?.message?.content?.trim();
+
+  if (!reply) {
+    const error = new Error("A resposta do modelo veio vazia.");
+    error.statusCode = 502;
+    throw error;
+  }
+
+  return reply;
+}
+
+async function requestReply({
+  client,
+  history,
+  maxTokens,
+  message,
+  model,
+  providerName
+}) {
+  if (providerName === "ollama") {
+    return requestChatCompletionsReply({
+      client,
+      history,
+      maxTokens,
+      message,
+      model
+    });
+  }
+
+  return requestResponsesReply({
+    client,
+    history,
+    message,
+    model
+  });
+}
+
+export function createChatResponder(
+  config,
+  { createClient = createOpenAICompatibleClient } = {}
+) {
+  const providers = buildProviderConfigs(config).map((provider) => ({
+    ...provider,
+    client: createClient(provider)
+  }));
+
+  if (!providers.length) {
+    return async function unavailableResponder() {
+      throw buildUnavailableError();
+    };
+  }
 
   /**
    * @param {{ message: string, history: ChatMessage[] }} payload
    * @returns {Promise<string>}
    */
   return async function chatResponder({ history, message }) {
-    const response = await client.responses.create({
-      model: config.openaiModel,
-      instructions: SYSTEM_INSTRUCTIONS,
-      input: buildConversationInput({ history, message }),
-      max_output_tokens: 350
-    });
+    let lastError = null;
 
-    const reply = response.output_text?.trim();
+    for (const provider of providers) {
+      try {
+        const reply = await requestReply({
+          client: provider.client,
+          history,
+          maxTokens: provider.maxTokens,
+          message,
+          model: provider.model,
+          providerName: provider.name
+        });
 
-    if (!reply) {
-      const error = new Error("A resposta do modelo veio vazia.");
-      error.statusCode = 502;
-      throw error;
+        return {
+          debug: {
+            model: provider.model,
+            provider: provider.name
+          },
+          reply
+        };
+      } catch (error) {
+        const providerError = new Error(
+          `Falha ao consultar o provedor ${provider.name}.`
+        );
+        providerError.cause = error;
+        providerError.provider = provider.name;
+        providerError.statusCode = resolveStatusCode(error);
+        lastError = providerError;
+      }
     }
 
-    return reply;
+    throw lastError || buildUnavailableError();
   };
 }

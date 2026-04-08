@@ -13,12 +13,20 @@ export async function checkSession() {
     credentials: "include"
   });
 
+  const body = await parseResponse(response);
+
   if (response.ok) {
-    return true;
+    return {
+      authenticated: true,
+      debug: body?.debug || null
+    };
   }
 
   if (response.status === 401) {
-    return false;
+    return {
+      authenticated: false,
+      debug: null
+    };
   }
 
   throw new Error("Nao foi possivel verificar a sessao.");
@@ -55,7 +63,10 @@ export async function sendChatMessage(message, history) {
   const body = await parseResponse(response);
 
   if (response.ok && body?.reply) {
-    return body.reply;
+    return {
+      debug: body?.debug || null,
+      reply: body.reply
+    };
   }
 
   const error = new Error(

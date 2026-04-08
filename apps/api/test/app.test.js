@@ -11,8 +11,13 @@ function createConfig() {
   return {
     appAccessCode: "1510T",
     appOrigin: "",
+    debugEnabled: false,
     isProduction: false,
     nodeEnv: "test",
+    ollamaApiKey: "",
+    ollamaBaseUrl: "https://ollama.com/v1",
+    ollamaMaxTokens: 1000,
+    ollamaModel: "glm-4.7",
     openaiApiKey: "",
     openaiModel: "gpt-4o-mini",
     port: 3000,
@@ -82,6 +87,48 @@ test("GET /api/session retorna 401 sem cookie valido", async () => {
   await app.close();
 });
 
+test("GET /api/session inclui debug quando o modo debug esta ativo", async () => {
+  const app = await buildServer({
+    config: {
+      ...createConfig(),
+      debugEnabled: true,
+      ollamaApiKey: "ollama-key",
+      openaiApiKey: "openai-key"
+    },
+    responder: async () => "4"
+  });
+
+  const accessResponse = await app.inject({
+    method: "POST",
+    url: "/api/access",
+    payload: {
+      passphrase: "1510T"
+    }
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: "/api/session",
+    headers: {
+      cookie: accessResponse.headers["set-cookie"].split(";")[0]
+    }
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), {
+    authenticated: true,
+    debug: {
+      enabled: true,
+      providers: [
+        { provider: "ollama", model: "glm-4.7" },
+        { provider: "openai", model: "gpt-4o-mini" }
+      ]
+    }
+  });
+
+  await app.close();
+});
+
 test("POST /api/chat exige sessao autenticada", async () => {
   const app = await buildServer({
     config: createConfig(),
@@ -142,6 +189,53 @@ test("POST /api/chat responde quando a sessao esta autenticada", async () => {
   assert.equal(response.json().reply, "2 + 2 = 4.");
   assert.equal(capturedPayload.message, "Quanto e 2 + 2?");
   assert.equal(capturedPayload.history.length, 3);
+
+  await app.close();
+});
+
+test("POST /api/chat inclui metadados de debug quando habilitado", async () => {
+  const app = await buildServer({
+    config: {
+      ...createConfig(),
+      debugEnabled: true
+    },
+    responder: async () => ({
+      reply: "2 + 2 = 4.",
+      debug: {
+        provider: "ollama",
+        model: "glm-4.7"
+      }
+    })
+  });
+
+  const accessResponse = await app.inject({
+    method: "POST",
+    url: "/api/access",
+    payload: {
+      passphrase: "1510T"
+    }
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/api/chat",
+    headers: {
+      cookie: accessResponse.headers["set-cookie"].split(";")[0]
+    },
+    payload: {
+      message: "Quanto e 2 + 2?",
+      history: []
+    }
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), {
+    reply: "2 + 2 = 4.",
+    debug: {
+      provider: "ollama",
+      model: "glm-4.7"
+    }
+  });
 
   await app.close();
 });

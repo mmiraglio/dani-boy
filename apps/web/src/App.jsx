@@ -15,6 +15,7 @@ const INITIAL_MESSAGE = {
 
 function App() {
   const [screen, setScreen] = useState("loading");
+  const [debugInfo, setDebugInfo] = useState(null);
   const [passphrase, setPassphrase] = useState("");
   const [accessError, setAccessError] = useState("");
   const [bootError, setBootError] = useState("");
@@ -28,8 +29,9 @@ function App() {
   useEffect(() => {
     async function bootstrap() {
       try {
-        const authenticated = await checkSession();
-        setScreen(authenticated ? "chat" : "gate");
+        const session = await checkSession();
+        setDebugInfo(session.debug || null);
+        setScreen(session.authenticated ? "chat" : "gate");
       } catch (_error) {
         setBootError(
           "Nao consegui validar sua sessao agora. Tente atualizar a pagina."
@@ -67,8 +69,10 @@ function App() {
 
     try {
       await requestAccess(sanitizedPassphrase);
+      const session = await checkSession();
       setPassphrase("");
       setBootError("");
+      setDebugInfo(session.debug || null);
       setMessages([INITIAL_MESSAGE]);
       setScreen("chat");
     } catch (error) {
@@ -101,14 +105,19 @@ function App() {
     setIsSending(true);
 
     try {
-      const reply = await sendChatMessage(sanitizedDraft, history);
+      const response = await sendChatMessage(sanitizedDraft, history);
       setMessages((currentMessages) => [
         ...currentMessages,
-        { role: "assistant", content: reply }
+        {
+          role: "assistant",
+          content: response.reply,
+          debug: response.debug
+        }
       ]);
     } catch (error) {
       if (error.status === 401) {
         setScreen("gate");
+        setDebugInfo(null);
         setMessages([INITIAL_MESSAGE]);
         setAccessError("Sua sessao expirou. Digite a palavra-chave novamente.");
         return;
@@ -159,6 +168,7 @@ function App() {
           <section className="surface-panel chat-panel">
             <ChatView
               chatError={chatError}
+              debugInfo={debugInfo}
               draft={draft}
               handleSendMessage={handleSendMessage}
               handleTextareaKeyDown={handleTextareaKeyDown}
@@ -236,6 +246,7 @@ function GateView({
 
 function ChatView({
   chatError,
+  debugInfo,
   draft,
   handleSendMessage,
   handleTextareaKeyDown,
@@ -250,6 +261,8 @@ function ChatView({
         <Brand compact />
       </div>
 
+      {debugInfo?.enabled ? <DebugPanel debugInfo={debugInfo} /> : null}
+
       <div className="message-list" aria-live="polite" ref={messageListRef}>
         {messages.map((message, index) => (
           <article
@@ -260,9 +273,16 @@ function ChatView({
               {message.role === "assistant" ? "Dani Boy" : "Voce"}
             </span>
             {message.role === "assistant" ? (
-              <Suspense fallback={<p className="message-plain">{message.content}</p>}>
-                <MessageContent content={message.content} />
-              </Suspense>
+              <>
+                <Suspense fallback={<p className="message-plain">{message.content}</p>}>
+                  <MessageContent content={message.content} />
+                </Suspense>
+                {debugInfo?.enabled && message.debug ? (
+                  <p className="debug-inline">
+                    Respondeu com {message.debug.provider} / {message.debug.model}
+                  </p>
+                ) : null}
+              </>
             ) : (
               <p className="message-plain">{message.content}</p>
             )}
@@ -273,6 +293,12 @@ function ChatView({
           <article className="message-bubble message-assistant message-pending">
             <span className="message-role">Dani Boy</span>
             <p>Estou pensando na melhor explicacao para essa conta...</p>
+            {debugInfo?.enabled && debugInfo.providers[0] ? (
+              <p className="debug-inline">
+                Consultando {debugInfo.providers[0].provider} /{" "}
+                {debugInfo.providers[0].model}
+              </p>
+            ) : null}
           </article>
         ) : null}
       </div>
@@ -301,6 +327,20 @@ function ChatView({
 
       {chatError ? <p className="status-error">{chatError}</p> : null}
     </div>
+  );
+}
+
+function DebugPanel({ debugInfo }) {
+  return (
+    <section className="debug-panel" aria-label="Informacoes de debug">
+      <p className="debug-title">Debug ativo</p>
+      <p className="debug-copy">
+        Ordem de tentativa:{" "}
+        {debugInfo.providers
+          .map(({ model, provider }) => `${provider} / ${model}`)
+          .join(" -> ")}
+      </p>
+    </section>
   );
 }
 

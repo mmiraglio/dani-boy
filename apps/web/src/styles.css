@@ -258,6 +258,38 @@ textarea {
   padding-bottom: 4px;
 }
 
+.debug-panel {
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(18, 48, 65, 0.08);
+  border: 1px dashed rgba(18, 48, 65, 0.18);
+}
+
+.debug-title,
+.debug-copy,
+.debug-inline {
+  margin: 0;
+}
+
+.debug-title {
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.debug-copy,
+.debug-inline {
+  color: var(--text-soft);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.84rem;
+}
+
+.debug-copy {
+  margin-top: 6px;
+}
+
 .message-list {
   display: flex;
   flex-direction: column;
@@ -298,6 +330,12 @@ textarea {
 .message-content {
   color: var(--text-soft);
   word-break: break-word;
+}
+
+.debug-inline {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(18, 48, 65, 0.14);
 }
 
 .message-content > :first-child {

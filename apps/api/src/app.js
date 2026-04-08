@@ -11,7 +11,11 @@ import {
   requireAuthenticatedSession,
   setAccessCookie
 } from "./auth.js";
-import { createChatResponder, sanitizeHistory } from "./openai.js";
+import {
+  createChatResponder,
+  listConfiguredProviders,
+  sanitizeHistory
+} from "./openai.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_STATIC_DIR = path.resolve(__dirname, "../../web/dist");
@@ -69,6 +73,20 @@ const chatSchema = {
   }
 };
 
+function buildDebugPayload(config) {
+  if (!config.debugEnabled) {
+    return null;
+  }
+
+  return {
+    enabled: true,
+    providers: listConfiguredProviders(config).map(({ model, name }) => ({
+      model,
+      provider: name
+    }))
+  };
+}
+
 export async function buildServer({
   config,
   logger = false,
@@ -121,9 +139,14 @@ export async function buildServer({
         });
       }
 
-      return {
-        authenticated: true
-      };
+      return config.debugEnabled
+        ? {
+          authenticated: true,
+          debug: buildDebugPayload(config)
+        }
+        : {
+          authenticated: true
+        };
     }
   );
 
@@ -169,10 +192,20 @@ export async function buildServer({
       const history = sanitizeHistory(request.body.history);
 
       try {
-        const assistantReply = await chatResponder({ history, message });
-        return {
-          reply: assistantReply
-        };
+        const response = await chatResponder({ history, message });
+        const assistantReply =
+          typeof response === "string" ? response : response?.reply;
+        const responseDebug =
+          typeof response === "string" ? null : response?.debug || null;
+
+        return config.debugEnabled && responseDebug
+          ? {
+            reply: assistantReply,
+            debug: responseDebug
+          }
+          : {
+            reply: assistantReply
+          };
       } catch (error) {
         request.log.error({ err: error }, "chat_request_failed");
 
